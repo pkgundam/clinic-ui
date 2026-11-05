@@ -1,9 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  // Note: we leave Cache Components off (create-next-app turns it on by default).
+  // With it on, Next keeps old pages alive in the background after you navigate,
+  // so a logged-out patient's chat and the typed password would stay in memory.
   turbopack: {
     rules: {
       "*.css": {
