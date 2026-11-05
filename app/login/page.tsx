@@ -30,7 +30,7 @@ export default function LoginPage() {
 
     try {
       const data = await login(email, password)
-      saveSession(data.token, data.user)
+      saveSession(data.token, data.user, data.thread_id)
       router.push("/chat")
     } catch (err) {
       if (err instanceof UnauthorizedError) {
