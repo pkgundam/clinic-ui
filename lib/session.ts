@@ -25,6 +25,16 @@ export function getToken() {
   return sessionStorage.getItem(TOKEN_KEY)
 }
 
+// The front desk (admin) starts on the approvals screen, patients on the chat.
+export function homePath(user: User | null) {
+  return user?.role === "admin" ? "/admin" : "/chat"
+}
+
+export function getUser(): User | null {
+  const saved = sessionStorage.getItem(USER_KEY)
+  return saved ? JSON.parse(saved) : null
+}
+
 // The signed-in patient, or null. The server has no sessionStorage, so it gets
 // null first and React fills in the real value in the browser.
 export function useUser(): User | null {

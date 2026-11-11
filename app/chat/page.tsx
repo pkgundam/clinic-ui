@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { LoaderCircleIcon, StethoscopeIcon } from "lucide-react"
 
 import {
+  getChatMessages,
   listChats,
   newChat,
   openChat,
@@ -13,6 +14,7 @@ import {
   type ChatSummary,
   type SavedMessage,
 } from "@/lib/api"
+import { FRONT_DESK_REPLY, POLL_MS } from "@/lib/config"
 import {
   clearSession,
   getThreadId,
@@ -24,6 +26,7 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { ChatHeader } from "@/components/chat-header"
 import { ChatInput } from "@/components/chat-input"
 import { ChatMessage, type ChatItem } from "@/components/chat-message"
+import { FrontDeskWaiting } from "@/components/front-desk-waiting"
 import { Suggestions } from "@/components/suggestions"
 import { Button } from "@/components/ui/button"
 import {
@@ -46,21 +49,32 @@ import { Trace, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace"
 
 // Turn saved rows into messages: a question and, if there is one, its answer.
 // The backend does not keep tool calls for old messages, so there are none to show.
-function toChatItems(rows: SavedMessage[]): ChatItem[] {
-  return rows.flatMap((row) => {
-    const items: ChatItem[] = [
+// If the chat waits for the front desk, the last question gets the "sent to the
+// front desk" reply again (the backend doesn't save that one).
+function toChatItems(rows: SavedMessage[], waiting = false): ChatItem[] {
+  const items = rows.flatMap((row) => {
+    const pair: ChatItem[] = [
       { id: crypto.randomUUID(), role: "user", text: row.question },
     ]
     if (row.ai_answer) {
-      items.push({
+      pair.push({
         id: crypto.randomUUID(),
         role: "assistant",
         text: row.ai_answer,
         toolCalls: [],
       })
     }
-    return items
+    return pair
   })
+  if (waiting && rows.length > 0 && !rows[rows.length - 1].ai_answer) {
+    items.push({
+      id: crypto.randomUUID(),
+      role: "assistant",
+      text: FRONT_DESK_REPLY,
+      toolCalls: [],
+    })
+  }
+  return items
 }
 
 export default function ChatPage() {
@@ -73,6 +87,9 @@ export default function ChatPage() {
   const [chats, setChats] = useState<ChatSummary[]>([])
   const [threadId, setThreadId] = useState<string | null>(null) // the open chat
   const [switchError, setSwitchError] = useState<string | null>(null)
+  // The assistant paused this chat for the front desk. The patient can't send
+  // until they answer (the backend would only say "still waiting").
+  const [deskWaiting, setDeskWaiting] = useState(false)
 
   // While the assistant is busy, the patient can't type or switch chats.
   const busy = waiting || switching
@@ -104,7 +121,8 @@ export default function ChatPage() {
       const chat = await openChat(token, id)
       saveThreadId(chat.thread_id)
       setThreadId(chat.thread_id)
-      setMessages(toChatItems(chat.messages))
+      setMessages(toChatItems(chat.messages, chat.waiting_for_approval))
+      setDeskWaiting(chat.waiting_for_approval)
       setFailedMessage(null)
     } catch (error) {
       if (error instanceof UnauthorizedError) return logout()
@@ -125,6 +143,7 @@ export default function ChatPage() {
       saveThreadId(chat.thread_id)
       setThreadId(chat.thread_id)
       setMessages([])
+      setDeskWaiting(false)
       setFailedMessage(null)
     } catch (error) {
       if (error instanceof UnauthorizedError) return logout()
@@ -148,7 +167,8 @@ export default function ChatPage() {
         setChats(list)
         if (savedThreadId && list.some((c) => c.thread_id === savedThreadId)) {
           const chat = await openChat(token, savedThreadId)
-          setMessages(toChatItems(chat.messages))
+          setMessages(toChatItems(chat.messages, chat.waiting_for_approval))
+          setDeskWaiting(chat.waiting_for_approval)
         }
       } catch (error) {
         if (error instanceof UnauthorizedError) {
@@ -159,6 +179,54 @@ export default function ChatPage() {
     }
     start()
   }, [router])
+
+  // While the front desk checks, ask the backend every few seconds. Once the
+  // chat stops waiting, the last message's answer is the assistant's real reply.
+  useEffect(() => {
+    if (!deskWaiting || !threadId) return
+    const id = threadId
+    let stopped = false
+    let timer: ReturnType<typeof setTimeout>
+
+    async function check() {
+      const token = getToken()
+      if (!token) return
+      try {
+        const chat = await getChatMessages(token, id)
+        if (stopped) return
+        if (!chat.waiting_for_approval) {
+          const answer = chat.messages.at(-1)?.ai_answer
+          if (answer) {
+            setMessages((current) => [
+              ...current,
+              {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                text: answer,
+                toolCalls: [],
+              },
+            ])
+          }
+          setDeskWaiting(false)
+          setChats(await listChats(token)) // this chat moves to the top
+          return
+        }
+      } catch (error) {
+        if (error instanceof UnauthorizedError) {
+          clearSession()
+          return router.replace("/login")
+        }
+        // Anything else: just try again on the next round.
+      }
+      if (!stopped) timer = setTimeout(check, POLL_MS)
+    }
+
+    timer = setTimeout(check, POLL_MS)
+    return () => {
+      stopped = true
+      clearTimeout(timer)
+    }
+  }, [deskWaiting, threadId, router])
 
   // Ask the backend and add the reply. The patient's message is already on screen.
   async function getReply(text: string) {
@@ -182,6 +250,7 @@ export default function ChatPage() {
           rejected: data.rejected_response ?? undefined,
         },
       ])
+      setDeskWaiting(data.waiting_for_approval)
       loadChats() // a new chat shows up, and this one moves to the top
     } catch (error) {
       if (error instanceof UnauthorizedError) {
@@ -265,6 +334,12 @@ export default function ChatPage() {
                         </MessageScrollerItem>
                       )}
 
+                      {deskWaiting && (
+                        <MessageScrollerItem messageId="front-desk">
+                          <FrontDeskWaiting />
+                        </MessageScrollerItem>
+                      )}
+
                       {failedMessage && (
                         <MessageScrollerItem messageId="error">
                           <div
@@ -297,7 +372,21 @@ export default function ChatPage() {
               </p>
             )}
             {isEmpty && <Suggestions onPick={send} disabled={busy} />}
-            <ChatInput onSend={send} disabled={busy} />
+            {deskWaiting && (
+              <p
+                data-testid="waiting-hint"
+                className="px-1 text-sm text-muted-foreground"
+              >
+                You can send a new message once the front desk has answered.
+              </p>
+            )}
+            <ChatInput
+              onSend={send}
+              disabled={busy || deskWaiting}
+              placeholder={
+                deskWaiting ? "Waiting for the front desk…" : undefined
+              }
+            />
           </footer>
         </div>
       </SidebarInset>

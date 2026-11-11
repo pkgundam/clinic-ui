@@ -29,6 +29,8 @@ type ChatResponse = {
   // Set (both) when the reply was rewritten. new_response is the same as reply.
   rejected_response?: string | null
   new_response?: string | null
+  // True when the agent paused for the front desk. The real answer comes later.
+  waiting_for_approval: boolean
 }
 
 // One row in the sidebar. The title is empty until the chat has one.
@@ -50,10 +52,62 @@ type OpenedChat = {
   thread_id: string
   title: string
   messages: SavedMessage[]
+  waiting_for_approval: boolean // the front desk still has to check something
+}
+
+// What the front desk sees about a request, so it doesn't have to read ids.
+// starts_at is an ISO time. details is null if the slot or booking wasn't found.
+export type BookingDetails = {
+  doctor_name: string
+  speciality: string
+  starts_at: string
+  starts_at_display: string
+  reason: string | null
+}
+
+export type EmailDetails = BookingDetails & {
+  booking_code: string
+  subject: string
+}
+
+// One booking or email waiting for the front desk.
+export type Approval = {
+  id: number
+  patient_name: string
+  created_at: string
+} & (
+  | {
+      tool_name: "book_appointment"
+      args: Record<string, unknown>
+      details: BookingDetails | null
+    }
+  | {
+      tool_name: "send_email"
+      args: Record<string, unknown>
+      details: EmailDetails | null
+    }
+)
+
+export type Decision = "approve" | "edit" | "reject"
+
+type DecideResponse = {
+  reply: string
+  waiting_for_approval: boolean
 }
 
 // Thrown when the backend answers 401 (wrong password or expired session).
 export class UnauthorizedError extends Error {}
+
+// Any other failed request. detail is the backend's message, e.g.
+// "This approval was already decided".
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    public detail: string
+  ) {
+    super(detail)
+  }
+}
 
 async function request<T>(
   method: "GET" | "POST",
@@ -74,7 +128,13 @@ async function request<T>(
     throw new UnauthorizedError()
   }
   if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`)
+    // FastAPI sends errors as {"detail": "..."}
+    const data = await response.json().catch(() => null)
+    const detail =
+      typeof data?.detail === "string"
+        ? data.detail
+        : `Request failed with status ${response.status}`
+    throw new ApiError(response.status, detail)
   }
   return response.json()
 }
@@ -103,5 +163,37 @@ export function openChat(token: string, threadId: string) {
     "POST",
     `/chats/${encodeURIComponent(threadId)}/open`,
     token
+  )
+}
+
+// A chat's messages, without making it the open one. Polled while we wait
+// for the front desk.
+export function getChatMessages(token: string, threadId: string) {
+  return request<OpenedChat>(
+    "GET",
+    `/chats/${encodeURIComponent(threadId)}/messages`,
+    token
+  )
+}
+
+// Front desk only: everything waiting for a decision, oldest first.
+export function listApprovals(token: string) {
+  return request<Approval[]>("GET", "/admin/approvals", token)
+}
+
+// Front desk only: approve, edit (only the changed args) or reject (with a reason).
+// It returns once the assistant has carried on, which takes a few seconds.
+export function decideApproval(
+  token: string,
+  approvalId: number,
+  decision: Decision,
+  args: Record<string, string> | null = null,
+  reason: string | null = null
+) {
+  return request<DecideResponse>(
+    "POST",
+    `/admin/approvals/${approvalId}/decide`,
+    token,
+    { decision, args, reason }
   )
 }
