@@ -177,6 +177,9 @@ export default function ChatPage() {
           role: "assistant",
           text: data.reply,
           toolCalls: data.tool_calls,
+          intent: data.intent,
+          reason: data.judge_reason,
+          rejected: data.rejected_response ?? undefined,
         },
       ])
       loadChats() // a new chat shows up, and this one moves to the top
@@ -214,7 +217,7 @@ export default function ChatPage() {
       />
 
       <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-        <ChatHeader patientName={user.full_name} onLogout={logout} />
+        <ChatHeader user={user} onLogout={logout} />
 
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1">

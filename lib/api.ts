@@ -24,6 +24,11 @@ type LoginResponse = {
 type ChatResponse = {
   reply: string
   tool_calls: ToolCall[]
+  intent?: string // what the patient was asking about, e.g. "clinic_question"
+  judge_reason?: string // a short note on why
+  // Set (both) when the reply was rewritten. new_response is the same as reply.
+  rejected_response?: string | null
+  new_response?: string | null
 }
 
 // One row in the sidebar. The title is empty until the chat has one.

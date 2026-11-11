@@ -17,6 +17,16 @@ function toText(value: unknown) {
   return JSON.stringify(value, null, 2) ?? ""
 }
 
+// A failed tool returns { status: "error", message: "..." }.
+function hasFailed(result: unknown) {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    "status" in result &&
+    result.status === "error"
+  )
+}
+
 function Section({ title, value }: { title: string; value: unknown }) {
   return (
     <div className="flex flex-col gap-1.5">
@@ -36,7 +46,7 @@ export function Tool({ call }: { call: ToolCall }) {
   return (
     <TraceCollapsible>
       <TraceCollapsibleTrigger>
-        <TraceLine>
+        <TraceLine status={hasFailed(call.result) ? "error" : undefined}>
           <TraceIcon>
             <WrenchIcon />
           </TraceIcon>
