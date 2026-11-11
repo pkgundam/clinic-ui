@@ -41,10 +41,10 @@ export type ChatSummary = {
   updated_at: string
 }
 
-// One saved question and answer. ai_answer is empty if the assistant never replied.
+// One saved question and answer. ai_answer is null until the assistant replies.
 export type SavedMessage = {
   question: string
-  ai_answer: string
+  ai_answer: string | null
   message_sent_at: string
 }
 

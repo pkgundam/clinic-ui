@@ -182,6 +182,9 @@ export default function ChatPage() {
 
   // While the front desk checks, ask the backend every few seconds. Once the
   // chat stops waiting, the last message's answer is the assistant's real reply.
+  // The backend reads the messages a moment before it checks for waiting, so
+  // right when the reply is saved it can say "not waiting" with no answer yet.
+  // Then we just ask again on the next round.
   useEffect(() => {
     if (!deskWaiting || !threadId) return
     const id = threadId
@@ -194,8 +197,8 @@ export default function ChatPage() {
       try {
         const chat = await getChatMessages(token, id)
         if (stopped) return
-        if (!chat.waiting_for_approval) {
-          const answer = chat.messages.at(-1)?.ai_answer
+        const answer = chat.messages.at(-1)?.ai_answer
+        if (!chat.waiting_for_approval && answer != null) {
           if (answer) {
             setMessages((current) => [
               ...current,
