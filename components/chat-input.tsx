@@ -10,12 +10,16 @@ import {
   InputGroupTextarea,
 } from "@/components/ui/input-group"
 
+const PLACEHOLDER = "Ask about appointments, doctors or insurance…"
+
 export function ChatInput({
   onSend,
   disabled,
+  placeholder = PLACEHOLDER,
 }: {
   onSend: (text: string) => void
   disabled: boolean
+  placeholder?: string
 }) {
   const [text, setText] = useState("")
   const formRef = useRef<HTMLFormElement>(null)
@@ -51,8 +55,9 @@ export function ChatInput({
             }
           }}
           disabled={disabled}
-          placeholder="Ask about appointments, doctors or insurance…"
+          placeholder={placeholder}
           aria-label="Message"
+          data-testid="chat-input"
           className="min-h-14 p-3"
         />
         <InputGroupAddon align="block-end">
@@ -63,6 +68,7 @@ export function ChatInput({
             className="ml-auto rounded-full"
             disabled={!canSend}
             aria-label="Send"
+            data-testid="send-button"
           >
             <ArrowUpIcon />
           </InputGroupButton>

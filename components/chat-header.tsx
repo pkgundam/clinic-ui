@@ -1,4 +1,5 @@
-import { LogOutIcon } from "lucide-react"
+import Link from "next/link"
+import { ClipboardCheckIcon, LogOutIcon } from "lucide-react"
 
 import type { User } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -24,6 +25,18 @@ export function ChatHeader({
         <span className="shrink-0 rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground capitalize">
           {user.role}
         </span>
+        {/* The front desk can jump to the approvals screen. */}
+        {user.role === "admin" && (
+          <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={<Link href="/admin" />}
+          >
+            <ClipboardCheckIcon />
+            Approvals
+          </Button>
+        )}
         <Button variant="outline" size="sm" onClick={onLogout}>
           <LogOutIcon />
           Log out

@@ -36,7 +36,11 @@ export function ChatMessage({ item }: { item: ChatItem }) {
     return (
       <Message align="end">
         <MessageContent>
-          <Bubble align="end" className="max-w-[90%] md:max-w-[80%]">
+          <Bubble
+            align="end"
+            className="max-w-[90%] md:max-w-[80%]"
+            data-testid="msg-user"
+          >
             {/* whitespace-pre-wrap keeps the patient's line breaks */}
             <BubbleContent className="rounded-2xl px-4 whitespace-pre-wrap">
               {item.text}
@@ -63,7 +67,11 @@ export function ChatMessage({ item }: { item: ChatItem }) {
             ))}
           </Trace>
         )}
-        <Bubble variant="secondary" className="max-w-[90%] md:max-w-[80%]">
+        <Bubble
+          variant="secondary"
+          className="max-w-[90%] md:max-w-[80%]"
+          data-testid="msg-assistant"
+        >
           <BubbleContent className="rounded-2xl px-4">
             <Markdown>{item.text}</Markdown>
           </BubbleContent>

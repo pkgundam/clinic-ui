@@ -59,6 +59,7 @@ export function AppSidebar({
             <SidebarMenuButton
               variant="outline"
               disabled={disabled}
+              data-testid="new-chat-button"
               onClick={() => {
                 onNewChat()
                 setOpenMobile(false)

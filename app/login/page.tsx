@@ -6,7 +6,7 @@ import { HeartPulseIcon, LoaderCircleIcon } from "lucide-react"
 
 import { login, UnauthorizedError } from "@/lib/api"
 import { CLINIC_NAME } from "@/lib/config"
-import { getToken, saveSession } from "@/lib/session"
+import { getToken, getUser, homePath, saveSession } from "@/lib/session"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,9 +18,9 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
-  // Already signed in? Go straight to the chat.
+  // Already signed in? Go straight to the chat (or the approvals, for the front desk).
   useEffect(() => {
-    if (getToken()) router.replace("/chat")
+    if (getToken()) router.replace(homePath(getUser()))
   }, [router])
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -31,7 +31,7 @@ export default function LoginPage() {
     try {
       const data = await login(email, password)
       saveSession(data.token, data.user, data.thread_id)
-      router.push("/chat")
+      router.push(homePath(data.user))
     } catch (err) {
       if (err instanceof UnauthorizedError) {
         setError("Wrong email or password. Please try again.")
@@ -64,6 +64,7 @@ export default function LoginPage() {
               id="email"
               type="email"
               autoComplete="email"
+              data-testid="login-email"
               required
               value={email}
               onChange={(event) => setEmail(event.target.value)}
@@ -76,6 +77,7 @@ export default function LoginPage() {
               id="password"
               type="password"
               autoComplete="current-password"
+              data-testid="login-password"
               required
               value={password}
               onChange={(event) => setPassword(event.target.value)}
@@ -91,7 +93,12 @@ export default function LoginPage() {
             </p>
           )}
 
-          <Button type="submit" size="lg" disabled={loading}>
+          <Button
+            type="submit"
+            size="lg"
+            disabled={loading}
+            data-testid="login-submit"
+          >
             {loading && <LoaderCircleIcon className="animate-spin" />}
             {loading ? "Signing in…" : "Sign in"}
           </Button>
